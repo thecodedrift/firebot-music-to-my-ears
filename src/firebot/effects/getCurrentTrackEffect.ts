@@ -1,0 +1,85 @@
+import { Effects } from "@crowbartools/firebot-custom-scripts-types/types/effects";
+import { logger } from "../../modules";
+import { currentTrack, toErrorReason } from "../../services/api";
+import { requesterOf } from "../../services/ledger";
+import { namespaced } from "../../shared/constants";
+import { ErrorReason } from "../../shared/types";
+
+type Model = Record<string, never>;
+
+interface Outputs {
+  isPlaying: boolean;
+  trackName: string;
+  artistName: string;
+  trackUri: string;
+  requestedBy: string;
+  errorReason: ErrorReason | "";
+}
+
+export const getCurrentTrackEffect: Effects.EffectType<Model, unknown, Outputs> = {
+  definition: {
+    id: namespaced("get-current-track"),
+    name: "Get Current Track (Spotify)",
+    description: "Outputs the currently playing Spotify track and who requested it.",
+    icon: "fad fa-music",
+    categories: ["integrations"],
+    outputs: [
+      {
+        label: "Is Playing",
+        description: "Whether a track is currently playing.",
+        defaultName: "isPlaying",
+      },
+      { label: "Track Name", description: "Name of the current track.", defaultName: "trackName" },
+      {
+        label: "Artist Name",
+        description: "Artist(s) of the current track.",
+        defaultName: "artistName",
+      },
+      { label: "Track URI", description: "Spotify URI of the current track.", defaultName: "trackUri" },
+      {
+        label: "Requested By",
+        description: "Who requested the current track (empty if it was not a request).",
+        defaultName: "requestedBy",
+      },
+      {
+        label: "Error Reason",
+        description: "Failure reason, when the lookup fails.",
+        defaultName: "errorReason",
+      },
+    ],
+  },
+  optionsTemplate: `
+    <eos-container header="Get Current Track">
+      <p class="muted">Outputs the currently playing Spotify track. This effect has no options.</p>
+    </eos-container>
+  `,
+  onTriggerEvent: async () => {
+    try {
+      const { track, isPlaying } = await currentTrack();
+      return {
+        success: true,
+        outputs: {
+          isPlaying,
+          trackName: track?.name ?? "",
+          artistName: track?.artist ?? "",
+          trackUri: track?.uri ?? "",
+          requestedBy: track ? requesterOf(track.uri) ?? "" : "",
+          errorReason: "",
+        },
+      };
+    } catch (error) {
+      logger.warn(`Get Current Track failed: ${String(error)}`);
+      return {
+        success: false,
+        outputs: {
+          isPlaying: false,
+          trackName: "",
+          artistName: "",
+          trackUri: "",
+          requestedBy: "",
+          errorReason: toErrorReason(error),
+        },
+      };
+    }
+  },
+};
