@@ -20,6 +20,12 @@ Non-negotiable constraints (full detail in the architecture doc):
 - Everything registered in `run()` must be **torn down in `stop()`**.
 - Use `runRequest.modules.logger` for logging, never `console`.
 
+## Git commits
+
+- **ALWAYS** run `git commit` with the `-S` flag to ensure commits are GPG-signed. If signing
+  fails (e.g. gpg can't open `/dev/tty` to prompt for the passphrase), ask the user to run
+  `echo "test" | gpg --sign > /dev/null` to load their GPG signing key, then retry the commit.
+
 ## OpenSpec
 
 This project uses [OpenSpec](https://github.com/Fission-AI/OpenSpec) for spec-driven development.

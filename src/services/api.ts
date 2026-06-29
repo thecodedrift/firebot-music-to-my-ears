@@ -8,6 +8,18 @@ import {
 } from "../types/spotify";
 import { getAccessToken, NotLinkedError } from "./auth";
 
+/** Thrown when a specifically-requested track can't be played for the account. */
+export class NotPlayableError extends Error {
+  /** Spotify restriction reason, e.g. market / product / explicit. */
+  reason?: string;
+
+  constructor(reason?: string) {
+    super(`Track is not playable${reason ? ` (${reason})` : ""}`);
+    this.name = "NotPlayableError";
+    this.reason = reason;
+  }
+}
+
 /** Error thrown for a non-OK Spotify API response, carrying the HTTP status. */
 export class SpotifyApiError extends Error {
   status: number;
@@ -74,6 +86,9 @@ export function toErrorReason(error: unknown): ErrorReason {
   if (error instanceof NotLinkedError) {
     return "not-linked";
   }
+  if (error instanceof NotPlayableError) {
+    return "not-playable";
+  }
   if (error instanceof SpotifyApiError) {
     if (error.reason === "NO_ACTIVE_DEVICE" || error.status === 404) {
       return "no-active-device";
@@ -98,12 +113,76 @@ function toTrack(item: SpotifyTrack): Track {
   };
 }
 
-/** Searches Spotify for tracks only (podcasts/episodes never returned). */
+/**
+ * Use the market tied to the access token so responses carry per-account
+ * `is_playable` (instead of the giant `available_markets` array) and search
+ * is filtered to what the linked account can actually play.
+ */
+const MARKET = "from_token";
+
+/**
+ * How many search results to fetch. Spotify's relevance ranking is unreliable
+ * at limit=1 (it can return a worse match than the obvious one); fetching a
+ * handful and taking the first playable result fixes that. See search tests.
+ */
+const SEARCH_LIMIT = 5;
+
+/** A Spotify track id is 22 base62 characters. */
+const TRACK_ID = "[A-Za-z0-9]{22}";
+const BARE_ID_RE = new RegExp(`^${TRACK_ID}$`);
+const URI_RE = new RegExp(`^spotify:track:(${TRACK_ID})$`);
+// open.spotify.com/track/<id> with optional locale segment (e.g. /intl-de/).
+const URL_RE = new RegExp(`open\\.spotify\\.com/(?:[a-z-]+/)?track/(${TRACK_ID})`);
+
+/**
+ * Extracts a Spotify track id from a share URL, `spotify:track:` URI, or bare
+ * id. Returns undefined when the input is an ordinary search query.
+ */
+export function parseTrackId(input: string): string | undefined {
+  const value = input.trim();
+  if (BARE_ID_RE.test(value)) {
+    return value;
+  }
+  return value.match(URI_RE)?.[1] ?? value.match(URL_RE)?.[1];
+}
+
+/**
+ * Fetches a single track by id with playability info. Throws
+ * {@link NotPlayableError} when the linked account/region can't play it.
+ */
+export async function getTrack(id: string): Promise<Track | undefined> {
+  const params = new URLSearchParams({ market: MARKET });
+  const { data } = await spotifyFetch<SpotifyTrack>(`/tracks/${id}?${params.toString()}`);
+  if (!data) {
+    return undefined;
+  }
+  if (data.is_playable === false) {
+    throw new NotPlayableError(data.restrictions?.reason);
+  }
+  return toTrack(data);
+}
+
+/**
+ * Resolves a track request. A Spotify URL/URI/id is looked up directly;
+ * anything else is searched (tracks only) and the first playable result is
+ * returned. Returns undefined when nothing playable matches.
+ */
 export async function searchTrack(query: string): Promise<Track | undefined> {
-  const params = new URLSearchParams({ q: query, type: "track", limit: "1" });
+  const id = parseTrackId(query);
+  if (id) {
+    return getTrack(id);
+  }
+
+  const params = new URLSearchParams({
+    q: query,
+    type: "track",
+    limit: String(SEARCH_LIMIT),
+    market: MARKET,
+  });
   const { data } = await spotifyFetch<SpotifySearchResponse>(`/search?${params.toString()}`);
-  const item = data?.tracks?.items?.[0];
-  return item ? toTrack(item) : undefined;
+  const items = data?.tracks?.items ?? [];
+  const playable = items.find((item) => item.is_playable !== false);
+  return playable ? toTrack(playable) : undefined;
 }
 
 /** Adds a track URI to the active device's playback queue. */

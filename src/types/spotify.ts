@@ -33,6 +33,13 @@ export interface SpotifyTrack {
   duration_ms: number;
   artists: Array<{ name: string }>;
   type: string;
+  /**
+   * Present only when the request supplied a `market` (we use `from_token`).
+   * `false` means the track can't be played for the linked account/region.
+   */
+  is_playable?: boolean;
+  /** Why a track is unplayable: `market`, `product`, or `explicit`. */
+  restrictions?: { reason?: string };
 }
 
 export interface SpotifySearchResponse {
