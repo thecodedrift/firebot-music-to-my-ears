@@ -63,7 +63,8 @@ Wire the effects into your own command. A typical song-request command (`!sr`):
 
 1. **Command trigger** `!sr` (or a channel-point reward).
 2. **Request Song (Spotify)** effect:
-   - **Search query**: `$arg[all]` (or `$redemptionMessage` for a reward)
+   - **Search query**: `$arg[all]` (or `$redemptionMessage` for a reward). Also accepts a
+     Spotify track link (or `spotify:track:` URI / id), which queues that exact track.
    - Adjust the blocked-terms list / explicit toggle as desired
 3. **Branch on the outputs** (effect outputs are read with `$effectOutput[name]`):
    - When `$effectOutput[success]` is `true` → **Chat** effect:

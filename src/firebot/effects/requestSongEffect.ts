@@ -62,8 +62,8 @@ export const requestSongEffect: Effects.EffectType<Model, unknown, Outputs> = {
       {
         label: "Error Reason",
         description:
-          "Why the request failed: not-found, blocked-term, explicit, recently-played, " +
-          "no-active-device, not-premium, not-linked.",
+          "Why the request failed: not-found, not-playable, blocked-term, explicit, " +
+          "recently-played, no-active-device, not-premium, not-linked.",
         defaultName: "errorReason",
       },
     ],

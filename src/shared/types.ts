@@ -5,6 +5,7 @@
  */
 export type ErrorReason =
   | "not-found"
+  | "not-playable"
   | "blocked-term"
   | "explicit"
   | "recently-played"

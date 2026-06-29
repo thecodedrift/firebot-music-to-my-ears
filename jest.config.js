@@ -2,7 +2,8 @@
 module.exports = {
   preset: "ts-jest",
   testEnvironment: "node",
-  roots: ["<rootDir>/src"],
+  roots: ["<rootDir>/src", "<rootDir>/tools"],
   testMatch: ["**/*.test.ts"],
+  globalSetup: "<rootDir>/tools/spotify/jest.globalSetup.ts",
   clearMocks: true,
 };
