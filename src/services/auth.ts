@@ -14,7 +14,7 @@ export class NotLinkedError extends Error {
 }
 
 /** Cached absolute expiry (ms epoch); the token itself is never cached. */
-let expiresAt: number | null = null;
+let expiresAt: number | undefined;
 
 /**
  * Token captured from the integration controller callbacks (init/link/connect),
@@ -29,7 +29,7 @@ export function setCapturedAuth(auth: AuthDefinition | undefined): void {
 
 /** Reset cached expiry (e.g. on stop). */
 export function resetAuthCache(): void {
-  expiresAt = null;
+  expiresAt = undefined;
 }
 
 /**
@@ -50,7 +50,7 @@ export function isLinked(): boolean {
 
 /** Whether the cached token is known-fresh (>5s from expiry). */
 function tokenIsFresh(): boolean {
-  return expiresAt !== null && expiresAt - Date.now() > 5000;
+  return expiresAt !== undefined && expiresAt - Date.now() > 5000;
 }
 
 /**
