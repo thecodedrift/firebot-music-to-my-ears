@@ -18,6 +18,22 @@
   },
   "ignorePatterns": ["dist/", "node_modules/", "scripts/", "webpack.config.js"],
   "rules": {
-    "@typescript-eslint/no-explicit-any": "off"
+    "@typescript-eslint/no-explicit-any": "off",
+    "no-console": "error",
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "Literal[raw=\"null\"]",
+        "message": "Prefer `undefined` over `null`: in TypeScript `null` is typeof 'object' and isn't truly empty. Use `undefined` (or omit the value)."
+      },
+      {
+        "selector": "MemberExpression[property.name=\"twitchChat\"]",
+        "message": "The `twitchChat` module is deprecated; use `twitchApi.chat` instead."
+      },
+      {
+        "selector": "MemberExpression[object.name=\"modules\"][property.name=\"fs\"]",
+        "message": "Firebot's `modules.fs` is deprecated; use Node's built-in `fs` instead."
+      }
+    ]
   }
 }

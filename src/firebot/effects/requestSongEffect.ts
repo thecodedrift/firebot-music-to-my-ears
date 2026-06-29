@@ -108,7 +108,7 @@ export const requestSongEffect: Effects.EffectType<Model, unknown, Outputs> = {
       triggerMeta: $scope.triggerMeta,
     };
     // Seed defaults on a fresh effect; an emptied list stays empty (means "no terms").
-    if ($scope.effect.blockedTerms == null) {
+    if ($scope.effect.blockedTerms === undefined) {
       $scope.effect.blockedTerms = ["karaoke", "instrumental", "inst."];
     }
   },
@@ -118,7 +118,7 @@ export const requestSongEffect: Effects.EffectType<Model, unknown, Outputs> = {
       return failure("not-found");
     }
 
-    let track: Track | null = null;
+    let track: Track | undefined;
     try {
       track = await searchTrack(query);
       if (!track) {
@@ -157,7 +157,7 @@ export const requestSongEffect: Effects.EffectType<Model, unknown, Outputs> = {
       };
     } catch (error) {
       logger.warn(`Request Song failed: ${String(error)}`);
-      return failure(toErrorReason(error), track ?? undefined);
+      return failure(toErrorReason(error), track);
     }
   },
 };

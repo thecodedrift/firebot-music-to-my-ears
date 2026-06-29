@@ -25,13 +25,13 @@ export class SpotifyApiError extends Error {
 interface FetchResult<T> {
   status: number;
   ok: boolean;
-  data: T | null;
+  data: T | undefined;
 }
 
 /**
  * Single Spotify API helper: injects the base URL + bearer token and throws a
  * typed {@link SpotifyApiError} on non-OK responses. Non-GET and 204 responses
- * resolve with `data: null`.
+ * resolve with `data: undefined`.
  */
 export async function spotifyFetch<T>(
   endpoint: string,
@@ -64,7 +64,7 @@ export async function spotifyFetch<T>(
   }
 
   if (response.status === 204 || method !== "GET") {
-    return { status: response.status, ok: true, data: null };
+    return { status: response.status, ok: true, data: undefined };
   }
   return { status: response.status, ok: true, data: (await response.json()) as T };
 }
@@ -99,11 +99,11 @@ function toTrack(item: SpotifyTrack): Track {
 }
 
 /** Searches Spotify for tracks only (podcasts/episodes never returned). */
-export async function searchTrack(query: string): Promise<Track | null> {
+export async function searchTrack(query: string): Promise<Track | undefined> {
   const params = new URLSearchParams({ q: query, type: "track", limit: "1" });
   const { data } = await spotifyFetch<SpotifySearchResponse>(`/search?${params.toString()}`);
   const item = data?.tracks?.items?.[0];
-  return item ? toTrack(item) : null;
+  return item ? toTrack(item) : undefined;
 }
 
 /** Adds a track URI to the active device's playback queue. */
@@ -128,7 +128,7 @@ export async function pause(): Promise<void> {
 }
 
 export interface CurrentTrack {
-  track: Track | null;
+  track: Track | undefined;
   isPlaying: boolean;
 }
 
@@ -139,10 +139,10 @@ export async function currentTrack(): Promise<CurrentTrack> {
   );
   // 204 = nothing playing.
   if (status === 204 || !data) {
-    return { track: null, isPlaying: false };
+    return { track: undefined, isPlaying: false };
   }
   return {
-    track: data.item ? toTrack(data.item) : null,
+    track: data.item ? toTrack(data.item) : undefined,
     isPlaying: data.is_playing,
   };
 }
