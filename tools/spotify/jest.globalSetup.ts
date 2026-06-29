@@ -6,6 +6,8 @@
  * refresh token still works, and records the result for the live search suite:
  *   - "ok"        credentials present and the refresh token is valid
  *   - "expired"   credentials present but the refresh token is rejected/revoked
+ *   - "unknown"   credentials present but the probe failed for another reason
+ *                 (network outage, harness bug) — not a token problem
  *   - "no-creds"  credentials absent (no network call made)
  *
  * The live suite skips on anything other than "ok", so an expired token soft-
@@ -27,8 +29,17 @@ export default async function globalSetup(): Promise<void> {
       initHarnessModules(readEnv());
       await getAccessToken(); // real refresh against Spotify
       status = "ok";
-    } catch {
-      status = "expired";
+    } catch (error) {
+      // Only an actually-rejected token (Spotify 4xx on refresh) is "expired".
+      // Anything else (network failure, harness bug) is "unknown" so the skip
+      // message stays honest instead of blaming the token.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/status 4\d\d/.test(message)) {
+        status = "expired";
+      } else {
+        status = "unknown";
+        console.warn(`[spotify auth probe] unexpected failure: ${message}`);
+      }
     }
   }
 
