@@ -3,7 +3,7 @@
  *
  * Runs the Authorization Code flow against a throwaway localhost callback,
  * exchanges the returned code for tokens, and writes SPOTIFY_REFRESH_TOKEN into
- * `.env` so `pnpm spotify:search` can mint live access tokens.
+ * `.env` so the live Jest search tests (`pnpm test`) can mint access tokens.
  *
  * By default this reuses Firebot's own redirect URI
  * (http://127.0.0.1:7472/api/v1/auth/callback), which is already registered in
@@ -164,7 +164,7 @@ async function main(): Promise<void> {
             resolveDone
           );
           console.log("\n✓ Refresh token written to .env");
-          console.log("  Now run:  pnpm spotify:search \"some song\"");
+          console.log("  Now run the live search tests:  pnpm test");
         })
         .catch((err) => {
           finish(500, html("Token exchange failed", String(err)), () => rejectDone(err));

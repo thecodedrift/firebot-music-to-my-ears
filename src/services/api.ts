@@ -149,10 +149,20 @@ export function parseTrackId(input: string): string | undefined {
 /**
  * Fetches a single track by id with playability info. Throws
  * {@link NotPlayableError} when the linked account/region can't play it.
+ * A malformed or nonexistent id (Spotify 400/404) resolves to `undefined`
+ * (treated as "not found") rather than propagating as a playback-device error.
  */
 export async function getTrack(id: string): Promise<Track | undefined> {
   const params = new URLSearchParams({ market: MARKET });
-  const { data } = await spotifyFetch<SpotifyTrack>(`/tracks/${id}?${params.toString()}`);
+  let data: SpotifyTrack | undefined;
+  try {
+    ({ data } = await spotifyFetch<SpotifyTrack>(`/tracks/${id}?${params.toString()}`));
+  } catch (error) {
+    if (error instanceof SpotifyApiError && (error.status === 404 || error.status === 400)) {
+      return undefined;
+    }
+    throw error;
+  }
   if (!data) {
     return undefined;
   }

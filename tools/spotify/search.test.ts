@@ -20,10 +20,14 @@ const authStatus = readAuthStatus();
 const live = authStatus === "ok" ? describe : describe.skip;
 
 if (authStatus !== "ok") {
-  const reason =
-    authStatus === "expired"
-      ? "refresh token expired/revoked — re-run `pnpm spotify:auth`"
-      : "set SPOTIFY_CLIENT_ID/SECRET and run `pnpm spotify:auth` to enable";
+  let reason: string;
+  if (authStatus === "expired") {
+    reason = "refresh token expired/revoked — re-run `pnpm spotify:auth`";
+  } else if (authStatus === "unknown") {
+    reason = "auth probe failed unexpectedly (see globalSetup output above)";
+  } else {
+    reason = "set SPOTIFY_CLIENT_ID/SECRET and run `pnpm spotify:auth` to enable";
+  }
   // eslint-disable-next-line no-console
   console.warn(`[spotify search] skipping live tests — ${reason}.`);
 }
@@ -107,5 +111,12 @@ live("spotify search (reported bugs)", () => {
 
     const fromId = await searchTrack("1O9XsjLUaxsYCRh9vyF8xS");
     expect(fromId!.uri).toBe("spotify:track:1O9XsjLUaxsYCRh9vyF8xS");
+  });
+
+  // A well-formed but nonexistent id is "not found" (undefined), not an error
+  // that maps to no-active-device.
+  it("returns undefined for a nonexistent track id", async () => {
+    const track = await searchTrack("0000000000000000000000");
+    expect(track).toBeUndefined();
   });
 });
