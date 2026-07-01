@@ -1,3 +1,4 @@
+import { logger } from "../modules";
 import { SPOTIFY_API_BASE } from "../shared/constants";
 import { ErrorReason, Track } from "../shared/types";
 import {
@@ -50,15 +51,25 @@ export async function spotifyFetch<T>(
   method = "GET",
   options: RequestInit = {}
 ): Promise<FetchResult<T>> {
-  const token = await getAccessToken();
-  const response = await fetch(`${SPOTIFY_API_BASE}${endpoint}`, {
-    ...options,
-    method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      ...(options.headers ?? {}),
-    },
-  });
+  const send = async (forceRefresh: boolean): Promise<Response> => {
+    const token = await getAccessToken(forceRefresh);
+    return fetch(`${SPOTIFY_API_BASE}${endpoint}`, {
+      ...options,
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(options.headers ?? {}),
+      },
+    });
+  };
+
+  let response = await send(false);
+  // A 401 means the token was rejected (expired, revoked, or rotated behind our
+  // back). Force a refresh and retry once before surfacing the failure.
+  if (response.status === 401) {
+    logger.debug("Spotify returned 401; forcing token refresh and retrying once");
+    response = await send(true);
+  }
 
   if (!response.ok) {
     let reason: string | undefined;

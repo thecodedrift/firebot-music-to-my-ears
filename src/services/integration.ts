@@ -9,7 +9,7 @@ import {
   SPOTIFY_TOKEN_PATH,
 } from "../shared/constants";
 import { ClientCredentials } from "../types/spotify";
-import { resetAuthCache, setCapturedAuth } from "./auth";
+import { resetAuthCache } from "./auth";
 
 /**
  * Builds the Firebot integration definition. Firebot drives the OAuth link flow
@@ -46,45 +46,20 @@ export function buildSpotifyDefinition(client: ClientCredentials): IntegrationDe
 }
 
 /**
- * Normalizes a candidate token payload (which may be `{access_token,...}` or
- * nested under `.token`) into our AuthDefinition and captures it for `auth.ts`.
- */
-function captureAuthFrom(source: unknown): void {
-  const data = source as Record<string, unknown> | undefined;
-  if (!data) {
-    return;
-  }
-  const candidate = (data.auth ?? data.oauth ?? data) as Record<string, unknown>;
-  const tokenObj = (candidate?.access_token ? candidate : candidate?.token) as
-    | Record<string, unknown>
-    | undefined;
-  if (tokenObj?.access_token) {
-    setCapturedAuth({
-      access_token: String(tokenObj.access_token),
-      refresh_token: tokenObj.refresh_token ? String(tokenObj.refresh_token) : undefined,
-      expires_in: typeof tokenObj.expires_in === "number" ? tokenObj.expires_in : 3600,
-      token_type: tokenObj.token_type ? String(tokenObj.token_type) : undefined,
-    });
-    logger.debug("Captured Spotify auth token from integration callback");
-  }
-}
-
-/**
- * Integration controller. Captures the OAuth token from Firebot's lifecycle
- * callbacks (Firebot does not reliably populate `definition.auth`), and tracks
- * connection state. Token refresh is handled lazily in `auth.ts`.
+ * Integration controller. Tracks connection state and clears the cached token
+ * expiry on disconnect/unlink. The OAuth token itself is read straight from
+ * `integrationManager...definition.auth` in `auth.ts` (single source of truth);
+ * we no longer snapshot it here. Token refresh is handled lazily in `auth.ts`.
  */
 export class SpotifyIntegrationController extends EventEmitter {
   connected = false;
 
-  init(_linked: boolean, integrationData?: unknown): void {
-    captureAuthFrom(integrationData);
+  init(): void {
     // Effects are registered by the script's run() loop, not here.
   }
 
-  connect(integrationData?: unknown): void {
+  connect(): void {
     this.connected = true;
-    captureAuthFrom(integrationData);
     this.emit("connected", INTEGRATION_ID);
   }
 
@@ -94,21 +69,15 @@ export class SpotifyIntegrationController extends EventEmitter {
     this.emit("disconnected", INTEGRATION_ID);
   }
 
-  link(linkData?: unknown): void {
-    captureAuthFrom(linkData);
+  link(): void {
     this.connected = true;
     logger.info("Spotify account linked");
     this.emit("connected", INTEGRATION_ID);
   }
 
-  onUserSettingsUpdate(integrationData?: unknown): void {
-    captureAuthFrom(integrationData);
-  }
-
   unlink(): void {
     this.connected = false;
     resetAuthCache();
-    setCapturedAuth(undefined);
     logger.info("Spotify account unlinked");
   }
 }
