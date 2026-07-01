@@ -1,5 +1,5 @@
 import { getModules, getParams, logger } from "../modules";
-import { INTEGRATION_ID, SPOTIFY_TOKEN_URL } from "../shared/constants";
+import { INTEGRATION_ID, SPOTIFY_SCOPES, SPOTIFY_TOKEN_URL } from "../shared/constants";
 import { AuthDefinition, SpotifyRefreshTokenResponse } from "../types/spotify";
 
 /**
@@ -16,31 +16,22 @@ export class NotLinkedError extends Error {
 /** Cached absolute expiry (ms epoch); the token itself is never cached. */
 let expiresAt: number | undefined;
 
-/**
- * Token captured from the integration controller callbacks (init/link/connect),
- * used as a fallback when Firebot does not populate `definition.auth`.
- */
-let capturedAuth: AuthDefinition | undefined;
-
-/** Store/clear the token captured from controller callbacks. */
-export function setCapturedAuth(auth: AuthDefinition | undefined): void {
-  capturedAuth = auth;
-}
-
 /** Reset cached expiry (e.g. on stop). */
 export function resetAuthCache(): void {
   expiresAt = undefined;
 }
 
 /**
- * Reads the live OAuth token Firebot stores on the integration definition.
+ * Reads the live OAuth token Firebot stores on the integration definition. This
+ * is the single source of truth for the token: Firebot persists the linked and
+ * refreshed token here, so we always read it back rather than caching a copy.
  * These fields are runtime-only and not present in the published typings.
  */
 function readStoredAuth(): AuthDefinition | undefined {
   const integration = getModules().integrationManager.getIntegrationById(INTEGRATION_ID) as
     | { definition?: { auth?: AuthDefinition } }
     | undefined;
-  return integration?.definition?.auth ?? capturedAuth;
+  return integration?.definition?.auth;
 }
 
 /** True when an account is linked (an access token is stored). */
@@ -55,15 +46,17 @@ function tokenIsFresh(): boolean {
 
 /**
  * Returns a valid access token, refreshing via the Spotify token endpoint when
- * the cached expiry is unknown or near. Throws {@link NotLinkedError} when no
- * account is linked.
+ * the cached expiry is unknown or near. Pass `forceRefresh` to refresh
+ * unconditionally, e.g. after Spotify rejects a token with a 401 (the token was
+ * revoked or rotated behind our back and our expiry timer can't see it). Throws
+ * {@link NotLinkedError} when no account is linked.
  */
-export async function getAccessToken(): Promise<string> {
+export async function getAccessToken(forceRefresh = false): Promise<string> {
   const auth = readStoredAuth();
   if (!auth?.access_token) {
     throw new NotLinkedError();
   }
-  if (tokenIsFresh()) {
+  if (!forceRefresh && tokenIsFresh()) {
     return auth.access_token;
   }
   const refreshed = await refreshAccessToken();
@@ -115,6 +108,8 @@ export async function refreshAccessToken(): Promise<AuthDefinition> {
 
   expiresAt = Date.now() + data.expires_in * 1000;
 
+  logGrantedScopes(data.scope);
+
   // saveIntegrationAuth is a runtime method not present in the published typings.
   (integrationManager as unknown as {
     saveIntegrationAuth: (integration: unknown, data: unknown) => void;
@@ -122,4 +117,30 @@ export async function refreshAccessToken(): Promise<AuthDefinition> {
 
   logger.debug("Spotify access token refreshed");
   return updated;
+}
+
+/**
+ * Logs whether the token Spotify just issued actually carries every scope we
+ * request. A missing scope (typically `user-modify-playback-state`) is the root
+ * of "Insufficient client scope" errors and means the account was linked under
+ * an older/narrower consent and must be re-linked. Spotify returns `scope` on
+ * refresh; when it's absent we can't verify and say so.
+ */
+function logGrantedScopes(scope: string | undefined): void {
+  if (scope === undefined) {
+    logger.debug("Spotify did not report granted scopes on refresh; cannot verify");
+    return;
+  }
+  const granted = new Set(scope.split(" ").filter(Boolean));
+  const missing = SPOTIFY_SCOPES.split(" ")
+    .filter(Boolean)
+    .filter((required) => !granted.has(required));
+  if (missing.length > 0) {
+    logger.warn(
+      `Spotify token is missing required scope(s): ${missing.join(", ")}. ` +
+        "Re-link the Spotify account (unlink then link) to grant them."
+    );
+    return;
+  }
+  logger.debug(`Spotify token has all required scopes: ${scope}`);
 }
