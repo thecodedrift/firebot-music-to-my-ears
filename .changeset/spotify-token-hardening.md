@@ -1,5 +1,5 @@
 ---
-"firebot-music-to-my-ears": patch
+"firebot-script-music-to-my-ears": patch
 ---
 
 Harden Spotify token handling and add scope diagnostics.
